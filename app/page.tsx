@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { ComposeView } from "@/components/compose-view"
 import { ProcessingView } from "@/components/processing-view"
 import { ResultView } from "@/components/result-view"
-import { MessageVault } from "@/components/message-vault"
+import { MessageVault } from "@/components/MessageVault"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { ConfettiEffect } from "@/components/Confetti"
 import { useTheme } from "@/hooks/use-theme"
