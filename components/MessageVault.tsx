@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-import { MessageList } from "./MessageList"
-import { EmptyState } from "./EmptyState"
-import { MessageDetailsModal } from "./MessageDetailsModal"
-import { CollapsedView } from "./CollapsedView"
+import { MessageList } from "@/components/MessageList"
+import { EmptyState } from "@/components/EmptyState"
+import { MessageDetailsModal } from "@/components/MessageDetailsModal"
+import { CollapsedView } from "@/components/CollapsedView"
 
 export interface SavedMessage {
     id: string
@@ -87,7 +87,7 @@ export function MessageVault({
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.2 }}
                             >
-                                <CardContent className={`p-3 ${hasMessages ? '' : 'h-full flex flex-col justify-center'}`}>
+                                <CardContent className={`${hasMessages ? '' : 'h-full flex flex-col justify-center'} p-3`}>
                                     {!hasMessages ? (
                                         <EmptyState theme={theme} />
                                     ) : (
