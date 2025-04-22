@@ -82,7 +82,7 @@ export function MessageDetailsModal({
 
                     <div>
                         <div className={`text-sm font-medium ${theme.subtext}`}>Message</div>
-                        <div className={`p-4 rounded-lg mt-1 ${theme.cardHeader} whitespace-pre-wrap`}>
+                        <div className={`p-4 rounded-lg mt-1 ${theme.cardHeader} whitespace-pre-wrap break-words max-h-60 overflow-y-auto`}>
                             {message.message}
                         </div>
                     </div>
