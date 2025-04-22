@@ -1,6 +1,5 @@
 import { motion } from "framer-motion"
 import { Clock, Send, X } from "lucide-react"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -25,7 +24,7 @@ export function MessageList({
     onResend
 }: MessageListProps) {
     return (
-        <ScrollArea className="h-[calc(100vh-9rem)]">
+        <div className="h-[calc(100vh-9rem)] w-full overflow-y-scroll">
             <div className="space-y-3 pb-3">
                 {savedMessages.map((msg) => (
                     <MessageItem
@@ -39,7 +38,7 @@ export function MessageList({
                     />
                 ))}
             </div>
-        </ScrollArea>
+        </div>
     )
 }
 
@@ -84,7 +83,7 @@ function MessageItem({
             <div className="flex justify-between items-start mb-2 pr-4">
                 <div className="font-medium text-sm">
                     {msg.subject
-                        ? truncateText(msg.subject, 24)
+                        ? <span className={theme.text}>{truncateText(msg.subject, 24)}</span>
                         : <span className={`${theme.subtext} italic`}>(No subject)</span>}
                 </div>
             </div>
@@ -93,8 +92,19 @@ function MessageItem({
                 To: {truncateText(msg.recipient, 24)}
             </div>
 
-            <div className={`text-sm mb-3 line-clamp-2 ${theme.text}`}>
-                {truncateText(msg.message, 80)}
+            <div className={`text-sm mb-3 ${theme.text}`}
+                style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                    maxHeight: '2.8em',
+                }}
+            >
+                {msg.message}
             </div>
 
             <div className="flex justify-between items-center">
