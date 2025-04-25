@@ -47,7 +47,7 @@ export function MessageVault({
     return (
         <TooltipProvider>
             <motion.div
-                className={`h-full ${isCollapsed ? 'w-16' : 'w-64 lg:w-80'} transition-all duration-300 flex-shrink-0`}
+                className={`md:h-screen lg:h-full ${isCollapsed ? 'w-16' : 'w-64 lg:w-80'} ${isCollapsed ? 'translate-x-12 lg:translate-x-0' : ''} transition-all duration-300 flex-shrink-0`}
                 initial={{ x: 50, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.5 }}
@@ -56,7 +56,7 @@ export function MessageVault({
                 <Button
                     variant="outline"
                     size="sm"
-                    className={`absolute -left-3 top-24 z-10 rounded-full p-1 ${theme.buttonSecondary} ${theme.shadow} ${darkMode ? 'border-slate-700 bg-slate-800/70' : 'border-slate-200 bg-white'}`}
+                    className={`absolute -left-6 lg:-left-6 top-24 z-10 rounded-full h-12 w-12 p-1 ${theme.buttonSecondary} ${theme.shadow} ${darkMode ? 'border-slate-700 bg-slate-800/70' : 'border-slate-200 bg-white'}`}
                     onClick={() => setIsCollapsed(!isCollapsed)}
                 >
                     {isCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
