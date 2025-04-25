@@ -12,8 +12,8 @@ interface ResultViewProps {
     isLoading: boolean
     darkMode: boolean
     sendingError?: string
-    notifyResult: boolean  // Add the notification preference prop
-    keepCopy: boolean       // Add the keepCopy prop
+    notifyResult: boolean
+    keepCopy: boolean
     remainingTryAgainAttempts: number
 }
 
@@ -26,7 +26,6 @@ export function ResultView({
     darkMode,
     notifyResult,
     keepCopy,
-    sendingError,
     remainingTryAgainAttempts
 }: ResultViewProps) {
     return (
@@ -83,12 +82,6 @@ export function ResultView({
                     ) : (
                         // Show not sent result when notification is enabled
                         <div>
-                            <p className={`${theme.subtext} mb-4`}>
-                                {sendingError ?
-                                    sendingError :
-                                    "The coin toss didn't go your way this time."
-                                }
-                            </p>
                             <div className="flex justify-center mb-4">
                                 <FailureAnimation darkMode={darkMode} />
                             </div>
