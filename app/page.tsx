@@ -12,6 +12,8 @@ import { ConfettiEffect } from "@/components/Confetti"
 import { useTheme } from "@/hooks/use-theme"
 import { ToastContainer, toast, ToastPosition } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import { incrementAttempted, incrementSent, useMessageStats } from "@/lib/firebase"
+import { name } from "@/data/data"
 
 // Type definitions
 interface SavedMessage {
@@ -69,6 +71,7 @@ const PROBABILITY_MAP = {
   10: 1000000  // 1 in 1,000,000 (0.0001%)
 }
 
+// Helper functions
 const setInLocalStorage = (key: string, value: any): void => {
   if (typeof window === "undefined") return
 
@@ -77,6 +80,18 @@ const setInLocalStorage = (key: string, value: any): void => {
   } catch (error) {
     console.error(`Error setting ${key} in localStorage:`, error)
     toast.error("Unable to save data to local storage")
+  }
+}
+
+function getFromLocalStorage<T>(key: string, parser: (value: string) => T): T | null {
+  const value = localStorage.getItem(key);
+  if (!value) return null;
+
+  try {
+    return parser(value);
+  } catch (error) {
+    console.error(`Error parsing localStorage value for key ${key}:`, error);
+    return null;
   }
 }
 
@@ -116,7 +131,6 @@ export default function Home() {
   const [currentMessage, setCurrentMessage] = useState<MessageData | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [keepCopy, setKeepCopy] = useState(true)
-  const [sendingError, setSendingError] = useState<string | null>(null)
   const [notifyResult, setNotifyResult] = useState(true)
   const [usedEmails, setUsedEmails] = useState<EmailUsage[]>([])
   const [tryAgainAttempts, setTryAgainAttempts] = useState<TryAgainCounter[]>([])
@@ -130,17 +144,346 @@ export default function Home() {
   // Theme
   const theme = useTheme(darkMode ?? false)
 
+  // Stats
+  const stats = useMessageStats();
+
+  // Memoized functions
+  const calculateOutcome = useCallback((selectedOdds: number): boolean => {
+    const denominator = PROBABILITY_MAP[selectedOdds as keyof typeof PROBABILITY_MAP] || 2
+    return Math.floor(Math.random() * denominator) + 1 === 1
+  }, [])
+
+  const isEmailOnCooldown = useCallback((email: string): boolean => {
+    const emailUsage = usedEmails.find(usage => usage.email === email)
+    if (!emailUsage || emailUsage.attempts < 4) return false
+
+    const now = new Date()
+    return (now.getTime() - emailUsage.lastUsed.getTime()) < COOLDOWN_PERIOD
+  }, [usedEmails])
+
+  const getCooldownTimeRemaining = useCallback((email: string): string => {
+    const emailUsage = usedEmails.find(usage => usage.email === email)
+    if (!emailUsage) return "0 hours"
+
+    const now = new Date()
+    const timeRemaining = Math.max(0, COOLDOWN_PERIOD - (now.getTime() - emailUsage.lastUsed.getTime()))
+
+    if (timeRemaining <= 0) return "0 hours"
+
+    const hoursRemaining = Math.ceil(timeRemaining / (60 * 60 * 1000))
+    return `${hoursRemaining} ${hoursRemaining === 1 ? 'hour' : 'hours'}`
+  }, [usedEmails])
+
+  const trackEmailUsage = useCallback((email: string) => {
+    setUsedEmails(prev => {
+      const existing = prev.find(usage => usage.email === email)
+      if (existing) {
+        return prev.map(usage =>
+          usage.email === email
+            ? { ...usage, attempts: (usage.attempts || 0) + 1, lastUsed: new Date() }
+            : usage
+        )
+      } else {
+        return [...prev, { email, attempts: 1, lastUsed: new Date() }]
+      }
+    })
+  }, [])
+
+  const getRemainingTryAgainAttempts = useCallback((messageId: string): number => {
+    const attemptCounter = tryAgainAttempts.find(counter => counter.messageId === messageId)
+    return attemptCounter ? Math.max(0, MAX_RETRY_ATTEMPTS - attemptCounter.attempts) : MAX_RETRY_ATTEMPTS
+  }, [tryAgainAttempts])
+
+  const incrementTryAgainCounter = useCallback((messageId: string) => {
+    setTryAgainAttempts(prev => {
+      const existing = prev.find(counter => counter.messageId === messageId)
+      if (existing) {
+        return prev.map(counter =>
+          counter.messageId === messageId
+            ? { ...counter, attempts: counter.attempts + 1 }
+            : counter
+        )
+      } else {
+        return [...prev, { messageId, attempts: 1 }]
+      }
+    })
+  }, [])
+
+  const extractFormData = useCallback((): MessageData | null => {
+    if (!formRef.current) return null
+
+    const formData = new FormData(formRef.current)
+    return {
+      recipient: formData.get('recipient') as string,
+      subject: formData.get('subject') as string,
+      message: formData.get('message') as string,
+      fromName: formData.get('fromName') as string,
+      keepCopy
+    }
+  }, [keepCopy])
+
+  const saveMessage = useCallback((messageData: MessageData): string => {
+    const newMessage: SavedMessage = {
+      id: messageData.id || uuidv4(),
+      recipient: messageData.recipient,
+      subject: messageData.subject,
+      message: messageData.message,
+      fromName: messageData.fromName,
+      timestamp: new Date(),
+      odds
+    }
+
+    setSavedMessages(prev => [newMessage, ...prev])
+    toast.info("Message saved to vault")
+    return newMessage.id
+  }, [odds])
+
+  const cleanupExpiredEmailRecords = useCallback(() => {
+    const now = new Date()
+    setUsedEmails(prev => {
+      const filtered = prev.filter(usage => now.getTime() - usage.lastUsed.getTime() < COOLDOWN_PERIOD)
+      if (filtered.length !== prev.length) {
+        toast.info("Some email cooldowns have expired")
+      }
+      return filtered
+    })
+  }, [])
+
+  const cleanupTryAgainCounters = useCallback(() => {
+    const validMessageIds = savedMessages.map(msg => msg.id)
+    setTryAgainAttempts(prev => prev.filter(counter => validMessageIds.includes(counter.messageId)))
+  }, [savedMessages])
+
+  // Process and send message
+  const processAndSendMessage = useCallback(async (messageData: MessageData, isRetry = false) => {
+    const isSuccess = calculateOutcome(odds)
+    trackEmailUsage(messageData.recipient)
+
+    if (isSuccess) {
+      try {
+        const sendResult = await sendEmail(messageData)
+
+        if (!sendResult.success) {
+          setResult("not-sent")
+          toast.error("Failed to send email")
+        } else {
+          // Successful send
+          incrementSent();
+          setResult("sent")
+
+          // Remove from saved messages if this was a retry
+          if (isRetry && messageData.id) {
+            setSavedMessages(prev => prev.filter(msg => msg.id !== messageData.id))
+          }
+
+          if (notifyResult) {
+            toast.success("Email sent successfully!")
+            setShowConfetti(true)
+            setTimeout(() => setShowConfetti(false), 3000)
+          }
+        }
+      } catch (error) {
+        console.error("Error in send email process:", error)
+        setResult("not-sent")
+        toast.error("Error sending email")
+      }
+    } else {
+      setResult("not-sent")
+
+      if (notifyResult) {
+        toast.info(isRetry ? "The odds weren't in your favor this time either" : "The odds weren't in your favor")
+
+        // Only save on first attempt, not retry
+        if (!isRetry && messageData.keepCopy) {
+          const messageId = saveMessage(messageData)
+          setCurrentMessage(prev => prev ? { ...prev, id: messageId } : null)
+        }
+      }
+    }
+
+    setView("result")
+    setIsLoading(false)
+  }, [calculateOutcome, trackEmailUsage, odds, incrementSent, notifyResult, saveMessage])
+
+  // Form submission handler
+  const handleSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault()
+    setEmailError(null)
+
+    // Always increment attempted counter when form is submitted
+    incrementAttempted();
+
+    // Extract and validate form data
+    const formData = extractFormData()
+    if (!formData) return
+
+    if (!formData.recipient.trim()) {
+      toast.error("Please enter a recipient email address")
+      return
+    }
+
+    if (!formData.message.trim()) {
+      toast.error("Please enter a message")
+      return
+    }
+
+    // Check cooldown status
+    if (isEmailOnCooldown(formData.recipient)) {
+      const timeRemaining = getCooldownTimeRemaining(formData.recipient)
+      setEmailError(`This email address was recently used. Please wait ${timeRemaining} before trying again.`)
+      toast.warning(`Email cooldown: Wait ${timeRemaining}`)
+      return
+    }
+
+    // Start processing
+    setIsLoading(true)
+    setView("processing")
+    setCurrentMessage(formData)
+
+    // Show heartbeat animation after delay
+    heartbeatTimerRef.current = setTimeout(() => {
+      setShowHeartbeat(true)
+    }, 2000)
+
+    // Calculate result after random processing time
+    const processingTime = Math.floor(Math.random() * 2000) + 4000
+    processTimerRef.current = setTimeout(() => {
+      processAndSendMessage(formData)
+    }, processingTime)
+  }, [
+    extractFormData,
+    isEmailOnCooldown,
+    getCooldownTimeRemaining,
+    processAndSendMessage,
+    incrementAttempted
+  ])
+
+  // Reset app to initial state
+  const resetApp = useCallback(() => {
+    setView("compose")
+    setResult(null)
+    setShowHeartbeat(false)
+    setIsLoading(false)
+    setShowConfetti(false)
+    setCurrentMessage(null)
+    setEmailError(null)
+
+    if (formRef.current) {
+      formRef.current.reset()
+    }
+
+    setOdds(1)
+    toast.info("Starting fresh")
+
+    // Run cleanup operations
+    cleanupExpiredEmailRecords()
+    cleanupTryAgainCounters()
+  }, [cleanupExpiredEmailRecords, cleanupTryAgainCounters])
+
+  // Try sending a message again
+  const tryAgain = useCallback(() => {
+    // Validate current message
+    if (!currentMessage || !currentMessage.id) {
+      toast.error("Cannot retry: Missing message information")
+      return
+    }
+
+    // Check retry attempt limits
+    const remainingAttempts = getRemainingTryAgainAttempts(currentMessage.id)
+    if (remainingAttempts <= 0) {
+      toast.warning("No retry attempts remaining")
+      return
+    }
+
+    // Check cooldown status
+    if (isEmailOnCooldown(currentMessage.recipient)) {
+      const timeRemaining = getCooldownTimeRemaining(currentMessage.recipient)
+      toast.warning(`Email cooldown: Wait ${timeRemaining}`)
+      return
+    }
+
+    // Increment retry counter
+    incrementTryAgainCounter(currentMessage.id)
+    incrementAttempted();
+    toast.info(`Retry attempt ${MAX_RETRY_ATTEMPTS - remainingAttempts + 1}/${MAX_RETRY_ATTEMPTS}`)
+
+    // Start processing
+    setIsLoading(true)
+    setView("processing")
+    setShowHeartbeat(false)
+
+    // Show heartbeat after delay and then process
+    heartbeatTimerRef.current = setTimeout(() => {
+      setShowHeartbeat(true)
+
+      processTimerRef.current = setTimeout(() => {
+        processAndSendMessage(currentMessage, true)
+      }, 3000)
+    }, 2000)
+  }, [
+    currentMessage,
+    getRemainingTryAgainAttempts,
+    isEmailOnCooldown,
+    getCooldownTimeRemaining,
+    incrementTryAgainCounter,
+    processAndSendMessage
+  ])
+
+  // Handle resending a saved message
+  const handleResend = useCallback((message: SavedMessage) => {
+    setView("compose")
+    setNotifyResult(true)
+    setKeepCopy(true)
+    setEmailError(null)
+
+    setCurrentMessage({
+      recipient: message.recipient,
+      subject: message.subject || '',
+      message: message.message,
+      fromName: message.fromName || '',
+      keepCopy: true,
+      id: message.id
+    })
+
+    toast.info("Message loaded for resending")
+
+    // Wait for form to be in DOM
+    setTimeout(() => {
+      if (!formRef.current) return
+
+      const form = formRef.current
+      const elements = form.elements as any
+
+      // Fill form fields
+      elements.recipient.value = message.recipient
+      elements.subject.value = message.subject || ''
+      elements.message.value = message.message
+      elements.fromName.value = message.fromName || ''
+
+      // Set odds
+      setOdds(message.odds)
+    }, 100)
+  }, [])
+
+  // Delete a saved message
+  const handleDelete = useCallback((id: string) => {
+    setSavedMessages(prev => prev.filter(msg => msg.id !== id))
+    toast.info("Message deleted from vault")
+  }, [])
+
+  // Handle notification preference changes
+  const handleNotifyResultChange = useCallback((value: boolean) => {
+    setNotifyResult(value)
+    // Link keepCopy to notifyResult
+    if (!value) {
+      setKeepCopy(false)
+    }
+  }, [])
+
   // Keep notifyResult and keepCopy states linked
   useEffect(() => {
     if (!notifyResult) setKeepCopy(false)
   }, [notifyResult])
-
-  // Calculate outcome based on odds
-  const calculateOutcome = useCallback((selectedOdds: number): boolean => {
-    const denominator = PROBABILITY_MAP[selectedOdds as keyof typeof PROBABILITY_MAP] || 2
-    const roll = Math.floor(Math.random() * denominator) + 1
-    return roll === 1
-  }, [])
 
   // Initialize app from localStorage
   useEffect(() => {
@@ -158,38 +501,54 @@ export default function Home() {
 
     try {
       // Load saved messages with date parsing
-      const storedMessages = localStorage.getItem(STORAGE_KEYS.MESSAGES)
+      const parseDateReviver = (_key: string, value: any) =>
+        _key === 'timestamp' || _key === 'lastUsed' ? new Date(value) : value;
+
+      // Load saved messages
+      const storedMessages = getFromLocalStorage<SavedMessage[]>(
+        STORAGE_KEYS.MESSAGES,
+        (value) => JSON.parse(value, parseDateReviver)
+      );
+
       if (storedMessages) {
-        const parsedMessages = JSON.parse(storedMessages, (key, value) =>
-          key === 'timestamp' ? new Date(value) : value
-        )
-        setSavedMessages(parsedMessages)
+        setSavedMessages(storedMessages)
 
         // Auto-expand sidebar if messages exist on desktop
         const isDesktop = window.innerWidth >= 1024
-        if (parsedMessages.length > 0 && isDesktop) {
+        if (storedMessages.length > 0 && isDesktop) {
           setSidebarCollapsed(false)
         }
       }
 
       // Load email usage history
-      const storedEmailUsage = localStorage.getItem(STORAGE_KEYS.EMAIL_USAGE)
+      const storedEmailUsage = getFromLocalStorage<EmailUsage[]>(
+        STORAGE_KEYS.EMAIL_USAGE,
+        (value) => JSON.parse(value, parseDateReviver)
+      );
+
       if (storedEmailUsage) {
-        const parsedEmailUsage = JSON.parse(storedEmailUsage, (key, value) =>
-          key === 'lastUsed' ? new Date(value) : value
-        )
-        // Add attempts property if missing
-        const migratedEmailUsage = parsedEmailUsage.map((usage: any) => ({
-          ...usage,
-          attempts: usage.attempts || 1
-        }))
-        setUsedEmails(migratedEmailUsage)
+        try {
+          // Add attempts property if missing
+          const migratedEmailUsage = storedEmailUsage.map((usage: any) => ({
+            ...usage,
+            attempts: usage.attempts || 1
+          }))
+          setUsedEmails(migratedEmailUsage)
+        } catch (error) {
+          console.error("Error parsing email usage data:", error)
+          toast.error("Invalid email usage data found. Resetting to default.")
+          setUsedEmails([])
+          localStorage.removeItem(STORAGE_KEYS.EMAIL_USAGE)
+        }
       }
 
       // Load try again attempts
-      const storedTryAgainAttempts = localStorage.getItem(STORAGE_KEYS.TRY_AGAIN)
+      const storedTryAgainAttempts = getFromLocalStorage<TryAgainCounter[]>(
+        STORAGE_KEYS.TRY_AGAIN,
+        (value) => JSON.parse(value)
+      );
       if (storedTryAgainAttempts) {
-        setTryAgainAttempts(JSON.parse(storedTryAgainAttempts))
+        setTryAgainAttempts(storedTryAgainAttempts)
       }
     } catch (error) {
       console.error('Error loading data from localStorage:', error)
@@ -232,381 +591,6 @@ export default function Home() {
     }
   }, [tryAgainAttempts])
 
-  // Email cooldown checks
-  const isEmailOnCooldown = useCallback((email: string): boolean => {
-    const emailUsage = usedEmails.find(usage => usage.email === email)
-    if (!emailUsage || emailUsage.attempts < 4) return false
-
-    const now = new Date()
-    const timeSinceLastUse = now.getTime() - emailUsage.lastUsed.getTime()
-    return timeSinceLastUse < COOLDOWN_PERIOD
-  }, [usedEmails])
-
-  const getCooldownTimeRemaining = useCallback((email: string): string => {
-    const emailUsage = usedEmails.find(usage => usage.email === email)
-    if (!emailUsage) return "0 hours"
-
-    const now = new Date()
-    const timeSinceLastUse = now.getTime() - emailUsage.lastUsed.getTime()
-    const timeRemaining = COOLDOWN_PERIOD - timeSinceLastUse
-
-    if (timeRemaining <= 0) return "0 hours"
-
-    const hoursRemaining = Math.ceil(timeRemaining / (60 * 60 * 1000))
-    return `${hoursRemaining} ${hoursRemaining === 1 ? 'hour' : 'hours'}`
-  }, [usedEmails])
-
-  // Track email usage
-  const trackEmailUsage = useCallback((email: string) => {
-    setUsedEmails(prev => {
-      const existing = prev.find(usage => usage.email === email)
-      if (existing) {
-        return prev.map(usage =>
-          usage.email === email
-            ? { ...usage, attempts: (usage.attempts || 0) + 1, lastUsed: new Date() }
-            : usage
-        )
-      } else {
-        return [...prev, { email, attempts: 1, lastUsed: new Date() }]
-      }
-    })
-  }, [])
-
-  // Retry attempt management
-  const getRemainingTryAgainAttempts = useCallback((messageId: string): number => {
-    const attemptCounter = tryAgainAttempts.find(counter => counter.messageId === messageId)
-    if (!attemptCounter) return MAX_RETRY_ATTEMPTS
-    return Math.max(0, MAX_RETRY_ATTEMPTS - attemptCounter.attempts)
-  }, [tryAgainAttempts])
-
-  const incrementTryAgainCounter = useCallback((messageId: string) => {
-    setTryAgainAttempts(prev => {
-      const existing = prev.find(counter => counter.messageId === messageId)
-      if (existing) {
-        return prev.map(counter =>
-          counter.messageId === messageId
-            ? { ...counter, attempts: counter.attempts + 1 }
-            : counter
-        )
-      } else {
-        return [...prev, { messageId, attempts: 1 }]
-      }
-    })
-  }, [])
-
-  // Form data extraction
-  const extractFormData = useCallback((): MessageData | null => {
-    if (!formRef.current) return null
-
-    const formData = new FormData(formRef.current)
-    return {
-      recipient: formData.get('recipient') as string,
-      subject: formData.get('subject') as string,
-      message: formData.get('message') as string,
-      fromName: formData.get('fromName') as string,
-      keepCopy
-    }
-  }, [keepCopy])
-
-  // Save message to vault
-  const saveMessage = useCallback((messageData: MessageData): string => {
-    const newMessage: SavedMessage = {
-      id: messageData.id || uuidv4(),
-      recipient: messageData.recipient,
-      subject: messageData.subject,
-      message: messageData.message,
-      fromName: messageData.fromName,
-      timestamp: new Date(),
-      odds
-    }
-
-    setSavedMessages(prev => [newMessage, ...prev])
-    toast.info("Message saved to vault")
-    return newMessage.id
-  }, [odds])
-
-  // Cleanup functions
-  const cleanupExpiredEmailRecords = useCallback(() => {
-    const now = new Date()
-    setUsedEmails(prev => {
-      const filtered = prev.filter(usage => now.getTime() - usage.lastUsed.getTime() < COOLDOWN_PERIOD)
-      if (filtered.length !== prev.length) {
-        toast.info("Some email cooldowns have expired")
-      }
-      return filtered
-    })
-  }, [])
-
-  const cleanupTryAgainCounters = useCallback(() => {
-    const validMessageIds = savedMessages.map(msg => msg.id)
-    setTryAgainAttempts(prev => prev.filter(counter => validMessageIds.includes(counter.messageId)))
-  }, [savedMessages])
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (processTimerRef.current) clearTimeout(processTimerRef.current)
-      if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current)
-    }
-  }, [])
-
-  // Form submission handler
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault()
-    setEmailError(null)
-
-    // Extract and validate form data
-    const formData = extractFormData()
-    if (!formData) return
-
-    if (!formData.recipient.trim()) {
-      toast.error("Please enter a recipient email address")
-      return
-    }
-
-    if (!formData.message.trim()) {
-      toast.error("Please enter a message")
-      return
-    }
-
-    // Check cooldown status
-    if (isEmailOnCooldown(formData.recipient)) {
-      const timeRemaining = getCooldownTimeRemaining(formData.recipient)
-      setEmailError(`This email address was recently used. Please wait ${timeRemaining} before trying again.`)
-      toast.warning(`Email cooldown: Wait ${timeRemaining}`)
-      return
-    }
-
-    // Start processing
-    setIsLoading(true)
-    setView("processing")
-    setSendingError(null)
-    setCurrentMessage(formData)
-
-    // Show heartbeat animation after delay
-    heartbeatTimerRef.current = setTimeout(() => {
-      setShowHeartbeat(true)
-    }, 2000)
-
-    // Calculate result after random processing time
-    const processingTime = Math.floor(Math.random() * 2000) + 4000
-    processTimerRef.current = setTimeout(async () => {
-      // Determine outcome
-      const isSuccess = calculateOutcome(odds)
-      trackEmailUsage(formData.recipient)
-
-      if (isSuccess) {
-        try {
-          const sendResult = await sendEmail(formData)
-
-          if (!sendResult.success) {
-            setResult("not-sent")
-            setSendingError("Failed to send the email. Please try again.")
-            toast.error("Failed to send email")
-          } else {
-            setResult("sent")
-
-            if (notifyResult) {
-              toast.success("Email sent successfully!")
-              setShowConfetti(true)
-              setTimeout(() => setShowConfetti(false), 3000)
-            }
-          }
-        } catch (error) {
-          console.error("Error in send email process:", error)
-          setResult("not-sent")
-          setSendingError("An error occurred while sending your email.")
-          toast.error("Error sending email")
-        }
-      } else {
-        setResult("not-sent")
-
-        if (notifyResult) {
-          toast.info("The odds weren't in your favor")
-
-          if (formData.keepCopy) {
-            const messageId = saveMessage(formData)
-            setCurrentMessage(prev => prev ? { ...prev, id: messageId } : null)
-          }
-        }
-      }
-
-      setView("result")
-      setIsLoading(false)
-    }, processingTime)
-  }, [
-    extractFormData,
-    isEmailOnCooldown,
-    getCooldownTimeRemaining,
-    calculateOutcome,
-    odds,
-    trackEmailUsage,
-    notifyResult,
-    saveMessage,
-    keepCopy
-  ])
-
-  // Reset app to initial state
-  const resetApp = useCallback(() => {
-    setView("compose")
-    setResult(null)
-    setShowHeartbeat(false)
-    setIsLoading(false)
-    setShowConfetti(false)
-    setCurrentMessage(null)
-    setSendingError(null)
-    setEmailError(null)
-
-    if (formRef.current) {
-      formRef.current.reset()
-    }
-
-    setOdds(1)
-    toast.info("Starting fresh")
-
-    // Run cleanup operations
-    cleanupExpiredEmailRecords()
-    cleanupTryAgainCounters()
-  }, [cleanupExpiredEmailRecords, cleanupTryAgainCounters])
-
-  // Try sending a message again
-  const tryAgain = useCallback(async () => {
-    // Validate current message
-    if (!currentMessage || !currentMessage.id) {
-      setSendingError("Cannot retry: Missing message information.")
-      toast.error("Cannot retry: Missing message information")
-      return
-    }
-
-    // Check retry attempt limits
-    const remainingAttempts = getRemainingTryAgainAttempts(currentMessage.id)
-    if (remainingAttempts <= 0) {
-      setSendingError("You've used all your retry attempts for this message.")
-      toast.warning("No retry attempts remaining")
-      return
-    }
-
-    // Check cooldown status
-    if (isEmailOnCooldown(currentMessage.recipient)) {
-      const timeRemaining = getCooldownTimeRemaining(currentMessage.recipient)
-      setSendingError(`This email address was recently used. Please wait ${timeRemaining} before trying again.`)
-      toast.warning(`Email cooldown: Wait ${timeRemaining}`)
-      return
-    }
-
-    // Increment retry counter
-    incrementTryAgainCounter(currentMessage.id)
-    toast.info(`Retry attempt ${MAX_RETRY_ATTEMPTS - remainingAttempts + 1}/${MAX_RETRY_ATTEMPTS}`)
-
-    // Start processing
-    setIsLoading(true)
-    setView("processing")
-    setShowHeartbeat(false)
-    setSendingError(null)
-
-    // Show heartbeat after delay
-    heartbeatTimerRef.current = setTimeout(() => {
-      setShowHeartbeat(true)
-
-      // Calculate outcome after additional delay
-      processTimerRef.current = setTimeout(async () => {
-        const isSuccess = calculateOutcome(odds)
-        trackEmailUsage(currentMessage.recipient)
-
-        if (isSuccess) {
-          try {
-            const sendResult = await sendEmail(currentMessage)
-
-            if (!sendResult.success) {
-              setResult("not-sent")
-              setSendingError("Failed to send the email. Please try again.")
-              toast.error("Failed to send email")
-            } else {
-              setResult("sent")
-              // Remove from saved messages if successful
-              if (currentMessage.id) {
-                setSavedMessages(prev => prev.filter(msg => msg.id !== currentMessage.id))
-              }
-
-              if (notifyResult) {
-                toast.success("Email sent successfully!")
-                setShowConfetti(true)
-                setTimeout(() => setShowConfetti(false), 3000)
-              }
-            }
-          } catch (error) {
-            console.error("Error in try again send process:", error)
-            setResult("not-sent")
-            setSendingError("An error occurred while sending your email.")
-            toast.error("Error sending email")
-          }
-        } else {
-          setResult("not-sent")
-
-          if (notifyResult) {
-            toast.info("The odds weren't in your favor this time either")
-          }
-        }
-
-        setView("result")
-        setIsLoading(false)
-      }, 3000)
-    }, 2000)
-  }, [
-    currentMessage,
-    getRemainingTryAgainAttempts,
-    isEmailOnCooldown,
-    getCooldownTimeRemaining,
-    incrementTryAgainCounter,
-    calculateOutcome,
-    odds,
-    trackEmailUsage,
-    notifyResult
-  ])
-
-  // Handle resending a saved message
-  const handleResend = useCallback((message: SavedMessage) => {
-    setView("compose")
-    setNotifyResult(true)
-    setKeepCopy(true)
-    setSendingError(null)
-    setEmailError(null)
-
-    setCurrentMessage({
-      recipient: message.recipient,
-      subject: message.subject || '',
-      message: message.message,
-      fromName: message.fromName || '',
-      keepCopy: true,
-      id: message.id
-    })
-
-    toast.info("Message loaded for resending")
-
-    // Wait for form to be in DOM
-    setTimeout(() => {
-      if (!formRef.current) return
-
-      const form = formRef.current
-      const elements = form.elements as any
-
-      // Fill form fields
-      elements.recipient.value = message.recipient
-      elements.subject.value = message.subject || ''
-      elements.message.value = message.message
-      elements.fromName.value = message.fromName || ''
-
-      // Set odds
-      setOdds(message.odds)
-    }, 100)
-  }, [])
-
-  // Delete a saved message
-  const handleDelete = useCallback((id: string) => {
-    setSavedMessages(prev => prev.filter(msg => msg.id !== id))
-    toast.info("Message deleted from vault")
-  }, [])
-
   // Run cleanup operations on mount and interval
   useEffect(() => {
     cleanupExpiredEmailRecords()
@@ -620,12 +604,11 @@ export default function Home() {
     return () => clearInterval(cleanupInterval)
   }, [cleanupExpiredEmailRecords, cleanupTryAgainCounters])
 
-  // Handle notification preference changes
-  const handleNotifyResultChange = useCallback((value: boolean) => {
-    setNotifyResult(value)
-    // Link keepCopy to notifyResult
-    if (!value) {
-      setKeepCopy(false)
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (processTimerRef.current) clearTimeout(processTimerRef.current)
+      if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current)
     }
   }, [])
 
@@ -654,7 +637,7 @@ export default function Home() {
       </div>
 
       {/* Main layout */}
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen select-none">
         {/* Content area */}
         <div className="flex-1 px-4 lg:px-8 py-6 lg:py-10 overflow-y-auto">
           <div className="max-w-xl mx-auto">
@@ -672,15 +655,15 @@ export default function Home() {
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
                   <h1 className={`text-4xl md:text-5xl font-extrabold bg-clip-text text-transparent ${theme.accent} mb-2`}>
-                    Should I Should I Not
+                    {name}
                   </h1>
                   <div className={`absolute -inset-1 ${theme.accent} opacity-20 blur-lg rounded-lg -z-10`}></div>
                 </motion.div>
                 <p className={`${theme.subtext} mb-6 text-lg`}>A coin toss for your boldest messages</p>
                 <div className={`text-sm ${theme.glassCard} rounded-full px-6 py-3 inline-block ${theme.shadow} ${theme.glow}`}>
                   <span>
-                    <span className={`font-semibold ${theme.highlight}`}>78,102</span> messages attempted.
-                    <span className={`font-semibold ${theme.highlight} ml-1`}>39,009</span> sent.
+                    <span className={`font-semibold ${theme.highlight}`}>{stats.attempted.toLocaleString()}</span> messages attempted.
+                    <span className={`font-semibold ${theme.highlight} ml-1`}>{stats.sent.toLocaleString()}</span> sent.
                   </span>
                 </div>
               </motion.header>
@@ -724,7 +707,6 @@ export default function Home() {
                   tryAgain={tryAgain}
                   isLoading={isLoading}
                   darkMode={darkMode ?? false}
-                  sendingError={sendingError ?? undefined}
                   notifyResult={notifyResult}
                   keepCopy={keepCopy}
                   remainingTryAgainAttempts={currentMessage?.id ? getRemainingTryAgainAttempts(currentMessage.id) : 0}
