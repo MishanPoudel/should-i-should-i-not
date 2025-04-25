@@ -54,7 +54,7 @@ const STORAGE_KEYS = {
   THEME: 'theme'
 }
 
-const COOLDOWN_PERIOD = 12 * 60 * 60 * 1000 // 12 hours in milliseconds
+const COOLDOWN_PERIOD = 12 * 60 * 60 * 1000
 const MAX_RETRY_ATTEMPTS = 3
 
 // Probability mapping for odds selector
@@ -654,7 +654,7 @@ export default function Home() {
                   whileHover={{ scale: 1.02 }}
                   transition={{ type: "spring", stiffness: 300, damping: 10 }}
                 >
-                  <h1 className={`text-4xl md:text-5xl font-extrabold bg-clip-text text-transparent ${theme.accent} mb-2`}>
+                  <h1 onClick={resetApp} className={`text-4xl md:text-5xl font-extrabold bg-clip-text text-transparent ${theme.accent} mb-2 hover:cursor-pointer`}>
                     {name}
                   </h1>
                   <div className={`absolute -inset-1 ${theme.accent} opacity-20 blur-lg rounded-lg -z-10`}></div>
