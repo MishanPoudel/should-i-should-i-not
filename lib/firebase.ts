@@ -15,8 +15,8 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const email = process.env.NEXT_PUBLIC_FIREBASE_EMAIL;
-const password = process.env.NEXT_PUBLIC_FIREBASE_PASSWORD;
+const email = process.env.FIREBASE_EMAIL;
+const password = process.env.FIREBASE_PASSWORD;
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
