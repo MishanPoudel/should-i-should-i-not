@@ -25,11 +25,16 @@ export const formatRelativeTime = (date: Date) => {
 // Format the odds value to a readable string
 export const formatOdds = (odds: number) => {
   const oddsMap: Record<number, string> = {
-      1: "1 in 2",
-      2: "1 in 10",
-      3: "1 in 100",
-      4: "1 in 1,000",
-      5: "1 in 1,000,000",
+    1: "1 in 2",
+    2: "1 in 5",
+    3: "1 in 10",
+    4: "1 in 50",
+    5: "1 in 100",
+    6: "1 in 1,000",
+    7: "1 in 10,000",
+    8: "1 in 100,000",
+    9: "1 in 500,000",
+    10: "1 in 1,000,000"
   }
   return oddsMap[odds] || odds.toString()
 }
