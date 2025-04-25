@@ -107,7 +107,7 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(({
     <div
       ref={ref}
       className={cn(
-        "relative flex touch-none select-none items-center",
+        "relative flex touch-none select-none items-center hover:cursor-pointer",
         isHorizontal ? "w-full" : "h-full min-h-44 flex-col",
         disabled && "opacity-50 pointer-events-none",
         className
