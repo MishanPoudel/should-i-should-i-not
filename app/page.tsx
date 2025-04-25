@@ -14,6 +14,7 @@ import { ToastContainer, toast, ToastPosition } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { incrementAttempted, incrementSent, useMessageStats } from "@/lib/firebase"
 import { name } from "@/data/data"
+import { signInAsOwner } from "@/lib/firebase"
 
 // Type definitions
 interface SavedMessage {
@@ -304,6 +305,10 @@ export default function Home() {
     setView("result")
     setIsLoading(false)
   }, [calculateOutcome, trackEmailUsage, odds, incrementSent, notifyResult, saveMessage])
+
+  useEffect(() => {
+    signInAsOwner();
+  }, []);
 
   // Form submission handler
   const handleSubmit = useCallback((e: React.FormEvent) => {
