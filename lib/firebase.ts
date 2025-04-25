@@ -2,6 +2,7 @@
 import React from 'react';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, increment, update } from 'firebase/database';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,9 +15,13 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+const email = process.env.NEXT_PUBLIC_FIREBASE_EMAIL;
+const password = process.env.NEXT_PUBLIC_FIREBASE_PASSWORD;
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
+const auth = getAuth(app);
 
 // Reference to message stats
 const statsRef = ref(database, 'messageStats');
@@ -39,6 +44,18 @@ export function useMessageStats() {
     }, []);
 
     return stats;
+}
+
+export async function signInAsOwner() {
+    try {
+        if (!email || !password) {
+            throw new Error("Firebase email or password is not defined in environment variables.");
+        }
+        await signInWithEmailAndPassword(auth, email, password);
+        console.log("Signed in as owner");
+    } catch (error) {
+        console.error("Failed to sign in:", error);
+    }
 }
 
 // Functions to increment counters
