@@ -1,8 +1,7 @@
-// src/lib/firebase.ts
 import React from 'react';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, increment, update } from 'firebase/database';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -48,15 +47,21 @@ export function useMessageStats() {
 
 export async function signInAsOwner() {
     try {
-        if (!email || !password) {
-            throw new Error("Firebase email or password is not defined in environment variables.");
+        const res = await fetch('/api/signin-owner', {
+            method: 'POST',
+        });
+
+        if (!res.ok) {
+            throw new Error('Failed to sign in as owner');
         }
-        await signInWithEmailAndPassword(auth, email, password);
-        console.log("Signed in as owner");
+
+        const data = await res.json();
+        console.log('Signed in as owner:', data);
     } catch (error) {
-        console.error("Failed to sign in:", error);
+        console.error('Sign-in error:', error);
     }
 }
+
 
 // Functions to increment counters
 export function incrementAttempted() {
