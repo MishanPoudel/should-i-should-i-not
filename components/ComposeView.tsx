@@ -54,8 +54,6 @@ export function ComposeView({
     setNotifyResult,
     emailError
 }: ComposeViewProps) {
-    // State for animating the slider value
-    const [animatingOdds, setAnimatingOdds] = useState(odds);
     // State for the current fact
     const [currentFact, setCurrentFact] = useState(getRandomFact(odds));
 

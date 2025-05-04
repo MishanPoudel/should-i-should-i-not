@@ -1,7 +1,6 @@
 import React from 'react';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, increment, update } from 'firebase/database';
-import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,13 +13,9 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const email = process.env.FIREBASE_EMAIL;
-const password = process.env.FIREBASE_PASSWORD;
-
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
-const auth = getAuth(app);
 
 // Reference to message stats
 const statsRef = ref(database, 'messageStats');
