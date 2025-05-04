@@ -9,7 +9,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "50% of all marriages in the US end in divorce.",
         "About 50% of the human body is made up of oxygen.",
         "Nearly 50% of the world's population is right-hemisphere dominant.",
-        "50% of all gold ever mined on Earth has been extracted since 1967."
+        "50% of all gold ever mined on Earth has been extracted since 1967.",
+        "50% of the moon is always in sunlight — we just don’t see it all from Earth.",
+        "50% of the world's population lives in urban areas.",
+        "Approximately 50% of global internet users are from Asia.",
+        "Half of all species on Earth are insects."
     ],
     "2": [
         "20% is about the same as your chance of getting a head cold this year.",
@@ -19,7 +23,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "Only 20% of the Sahara desert is actually sand.",
         "20% of the world's bird species live in the Amazon.",
         "About 20% of people sneeze when they're exposed to bright light.",
-        "In the Middle Ages, 20% of men made it to the age of 65."
+        "In the Middle Ages, 20% of men made it to the age of 65.",
+        "Approximately 20% of the world's population lacks access to basic sanitation.",
+        "One in five people globally live on less than $1.90 a day.",
+        "20% of Earth's land surface is covered by deserts.",
+        "Around 20% of the world's population is under the age of 14."
     ],
     "3": [
         "10% is roughly your chance of being left-handed.",
@@ -29,7 +37,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "Only 10% of an iceberg is visible above the water.",
         "Humans use only about 10% of their hearts' total capacity.",
         "10% of the world's population has never made a phone call.",
-        "10% of the ocean floor has been explored by humans."
+        "10% of the ocean floor has been explored by humans.",
+        "Only 10% of energy from one trophic level transfers to the next in a food chain.",
+        "10% of the world's population suffers from dyslexia.",
+        "About 10% of people are afraid of the dark.",
+        "Roughly 10% of the world's population is over 65 years old."
     ],
     "4": [
         "2% is about the same chance as rolling double sixes on a pair of dice.",
@@ -39,7 +51,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "Only 2% of the population has green eyes.",
         "Just 2% of Earth's water is in the form of ice caps and glaciers.",
         "Roughly 2% of people have an extra bone in their knee.",
-        "Approximately 2% of people can hold their breath for more than 2 minutes."
+        "Approximately 2% of people can hold their breath for more than 2 minutes.",
+        "About 2% of the population has aphantasia — the inability to visualize images.",
+        "2% of the world's population are vegetarians.",
+        "Only 2% of the world's population has a PhD.",
+        "Approximately 2% of the world's population is homeless."
     ],
     "5": [
         "1% is approximately your chance of being born with an extra finger or toe.",
@@ -49,7 +65,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "The top 1% of the world owns 45% of the world's wealth.",
         "Only 1% of all bacteria cause diseases in humans.",
         "Just 1% of the Sun's energy would be enough to meet Earth's power needs.",
-        "About 1% of adults have absolute or perfect pitch."
+        "About 1% of adults have absolute or perfect pitch.",
+        "Roughly 1% of the world's population are millionaires.",
+        "Approximately 1% of the population has synesthesia.",
+        "Only 1% of the ocean's volume is explored.",
+        "1% of the world's population controls more than half of the world's wealth."
     ],
     "6": [
         "0.1% is about the same as your chance of finding a four-leaf clover on your first try.",
@@ -59,7 +79,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "Only 0.1% of all species that ever existed are still alive today.",
         "Approximately 0.1% of people can remember every day of their lives.",
         "0.1% of the global population has climbed Mount Everest.",
-        "Just 0.1% of all Antarctic ice is visible above water."
+        "Just 0.1% of all Antarctic ice is visible above water.",
+        "Just 0.1% of internet users generate the majority of online content.",
+        "Only 0.1% of the world's population has run a marathon.",
+        "Approximately 0.1% of people have an IQ over 145.",
+        "0.1% of Earth's atmosphere is composed of xenon."
     ],
     "7": [
         "0.01% is approximately the chance of being struck by lightning in your lifetime.",
@@ -69,7 +93,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "About 0.01% of the human population has eidetic (photographic) memory.",
         "Just 0.01% of the ocean's floor has been explored in detail.",
         "Only 0.01% of Earth's water is in the atmosphere.",
-        "Approximately 0.01% of people reach the age of 100."
+        "Approximately 0.01% of people reach the age of 100.",
+        "0.01% of YouTube channels have over 10 million subscribers.",
+        "Only 0.01% of Earth's surface is covered by glaciers.",
+        "Approximately 0.01% of the population has a third nipple.",
+        "0.01% of the world's population are professional pilots."
     ],
     "8": [
         "0.001% is roughly the chance of becoming a movie star.",
@@ -79,7 +107,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "Only 0.001% of all insect species have been cataloged by scientists.",
         "Just 0.001% of sunlight reaches the bottom of the deepest parts of the ocean.",
         "Approximately 0.001% of languages have more than 100 million speakers.",
-        "About 0.001% of people can remember what they ate for breakfast on any given day in their past."
+        "About 0.001% of people can remember what they ate for breakfast on any given day in their past.",
+        "Around 0.001% of people can voluntarily control their heart rate.",
+        "Only 0.001% of Earth's water is found in the atmosphere.",
+        "Approximately 0.001% of the population has an IQ over 160.",
+        "0.001% of the world's population are chess grandmasters."
     ],
     "9": [
         "0.0002% is about the chance of becoming a professional athlete.",
@@ -89,7 +121,11 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "Only 0.0002% of Earth's gold is accessible through mining.",
         "Just 0.0002% of the universe is visible to us.",
         "About 0.0002% of the Sahara Desert is permanent oasis.",
-        "Approximately 0.0002% of people win a substantial prize in a national lottery."
+        "Approximately 0.0002% of people win a substantial prize in a national lottery.",
+        "Only 0.0002% of submitted screenplays ever become a Hollywood movie.",
+        "0.0002% of the world's population are astronauts.",
+        "Approximately 0.0002% of people have run a sub-2-hour marathon.",
+        "0.0002% of Earth's surface is covered by active volcanoes."
     ],
     "10": [
         "0.0001% is approximately the chance of winning a major lottery.",
@@ -99,6 +135,10 @@ export const didYouKnowFacts: Record<string, string[]> = {
         "Just 0.0001% of the world's population has visited Antarctica.",
         "Only 0.0001% of the ocean floor has been mapped at high resolution.",
         "About 0.0001% of all meteorites that enter Earth's atmosphere are ever found.",
-        "Approximately 0.0001% of Earth's history has had human civilization on it."
+        "Approximately 0.0001% of Earth's history has had human civilization on it.",
+        "Roughly 0.0001% of Earth's atmosphere is xenon, a noble gas used in space propulsion.",
+        "0.0001% of the world's population are Nobel Prize winners.",
+        "Only 0.0001% of the ocean's volume is freshwater.",
+        "Approximately 0.0001% of people have a photographic memory."
     ]
 }
